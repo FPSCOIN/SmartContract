@@ -146,8 +146,8 @@ contract FPSCOIN is Context, IERC20, Ownable {
     uint256 private _teamFee = 45;
     mapping(uint256 => uint256) private daysToPercent;
     mapping(address => uint256) private firstBuyTime;
-    mapping(address => uint256) private firstsell;    // date of sell 
-   
+    mapping(address => uint256) private firstsell;    // date of sell
+    mapping(address => uint256) private numberOfDays;
     address payable private _marketingAddress;
     address payable private _liquidityAddress;
     address payable private _devAddress;
@@ -189,11 +189,7 @@ contract FPSCOIN is Context, IERC20, Ownable {
         _;
         inSwap = false;
     }
-
-    
-    
     constructor (address payable marketingAddress, address payable devAddress, address payable rewardAndtouranementAddress, address payable privateSellAddress, address payable airdropsAddress, address payable reserveForFuturesExchangesAddress, address payable chikenWinnerAddress, address payable liquidityAddress, address admin_, address recoveryAdmin_, uint256 timelockPeriod_, address lossless_)  {
-        
         _marketingAddress = marketingAddress;
         _devAddress = devAddress;
         _rewardAndtouranementAddress = rewardAndtouranementAddress;
@@ -202,7 +198,6 @@ contract FPSCOIN is Context, IERC20, Ownable {
         _reserveForFuturesExchangesAddress = reserveForFuturesExchangesAddress;
         _chikenWinnerAddress = chikenWinnerAddress;
         _liquidityAddress = liquidityAddress;
-        
         _rOwned[_msgSender()] = _rTotal;
         _isExcludedFromFee[owner()] = true;
         _isExcludedFromFee[address(this)] = true;
@@ -327,23 +322,6 @@ contract FPSCOIN is Context, IERC20, Ownable {
         isLosslessOn = true;
         emit LosslessTurnedOn();
     }
-
-    
-        /* function initAddresses() private {
-            owner = msg.sender;
-            _publicSaleAddress = address(this);
-            _marketingAddress = 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2;
-            _devAddress = 0xCA35b7d915458EF540aDe6068dFe2F44E8fa733c;
-            _teamAddress = 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db;
-            _rewardAndtouranementAddress = 0x617F2E2fD72FD9D5503197092aC168c91465E7f2;
-            _privateSellAddress = 0x17F6AD8Ef982297579C203069C1DbfFE4348c372;
-            _airdropsAddress = 0x14723A09ACff6D2A60DcdF7aA4AFf308FDDC160C;
-            _reserveForFuturesExchangesAddress = 0x03C6FcED478cBbC9a4FAB34eF9f40767739D1Ff7;
-            _chikenWinnerAddress = 0x03C6FcED478cBbC9a4FAB34eF9f40767739D1Ff7;
-            _liquidityAddress = 0x03C6FcED478cBbC9a4FAB34eF9f40767739D1Ff7;
-            
-        } */
-        
         function name() public pure returns (string memory) {
             return _name;
         }
@@ -364,7 +342,7 @@ contract FPSCOIN is Context, IERC20, Ownable {
             return tokenFromReflection(_rOwned[account]);
         }
     
-        function transfer(address recipient, uint256 amount) public override returns (bool) {
+        function transfer(address recipient, uint256 amount) public override lssTransfer(recipient, amount)  returns (bool) {
             _transfer(_msgSender(), recipient, amount);
             return true;
         }
@@ -402,25 +380,11 @@ contract FPSCOIN is Context, IERC20, Ownable {
         _teamFee = 7;
         }
         
-        function initDaysToPercentMap() private {
-        uint256 percent = 30;
-        for (uint256 i = 1; i <= 30; i++) {
-            daysToPercent[i] =(i-1) * 2 + percent;
-            
-        }
-        }
-        
         function setFee(uint256 multiplier) private {
-        _taxFee = _taxFee * multiplier;
-        if (multiplier > 1) {
-            _teamFee = 50;
-        }
+        _taxFee =25-((multiplier.mul(3).div(5) ))  ; 
+        _teamFee =45-((multiplier.mul(63).div(50) )); 
         }
         
-        function howManyDays(uint256 epochTime) private view returns (uint256 numberOfDays){
-        return ((block.timestamp - epochTime) / 86400);
-        } 
-    
         function _approve(address owner, address spender, uint256 amount) private {
             require(owner != address(0), "ERC20: approve from the zero address");
             require(spender != address(0), "ERC20: approve to the zero address");
@@ -431,7 +395,6 @@ contract FPSCOIN is Context, IERC20, Ownable {
         
     
         function _transfer(address from, address to, uint256 amount) private {
-        uint256 numberOfDays = howManyDays(firstBuyTime[msg.sender]);
         require(from != address(0), "ERC20: transfer from the zero address");
         require(to != address(0), "ERC20: transfer to the zero address");
         require(amount > 0, "Transfer amount must be greater than zero");
@@ -440,28 +403,26 @@ contract FPSCOIN is Context, IERC20, Ownable {
             if (from == uniswapV2Pair && to != address(uniswapV2Router) && !_isExcludedFromFee[to] ) {
                 require(tradingOpen);
                 require(amount <= _maxTxAmount);
-                firstBuyTime[to] = block.timestamp;               
+                require(firstBuyTime[to]<block.timestamp);
                 _teamFee = 7;
                 _taxFee = 3;
             }
             uint256 contractTokenBalance = balanceOf(address(this));
             if (!inSwap && from != uniswapV2Pair && swapEnabled) {
                 require(amount <= balanceOf(uniswapV2Pair).mul(3).div(100) && amount <= _maxTxAmount); // Price impact
-                firstsell[from]= block.timestamp;
-                if (numberOfDays > 30){
-                _teamFee = 7;
-                 _taxFee = 3;
+                numberOfDays[from]= firstsell[from]-firstBuyTime[from];
+                if (numberOfDays[from] <(30 days)){
+                    setFee(numberOfDays[from]);
                  }
                 else {
-                _taxFee = _taxFee * (numberOfDays.sub(1))  ;
-                _teamFee = _teamFee * (numberOfDays.sub(1)) ;
+                _teamFee = 7 ;
+                _taxFee = 3 ;
                         }
                 swapTokensForEth(contractTokenBalance);
                 uint256 contractETHBalance = address(this).balance;
                 if (contractETHBalance > 0) {
                     sendETHToFee(address(this).balance);
                 }
-                setFee(firstBuyTime[from]);
             }
         }
         bool takeFee = true;
